@@ -38,8 +38,8 @@ def configure(ctx):
 
 def build(bld):
 	files =  bld.path.ant_glob('src/*.c')
-	hfiles = bld.path.ant_glob('src/bnex/*.h')
-	bld.install_files('${PREFIX}/include/bnex', hfiles)
+#	hfiles = bld.path.ant_glob('src/bnex/*.h')
+#	bld.install_files('${PREFIX}/include/bnex', hfiles)
 	coreprog = bld (
 		features = "c cprogram",
 		target = coreprog_name,

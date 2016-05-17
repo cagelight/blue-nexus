@@ -47,12 +47,14 @@ size_t threads_len;
 
 thread_local bnex_connection_t * stash;
 
+static atomic (bnex_pool_node_t *) node;
+
 static void * bnex_pool_thread_run(void * parm __attribute__((unused))) {
 	
 	stash = malloc(sizeof(bnex_connection_t));
 	bnex_connection_create(stash);
 	
-	bnex_pool_node_t * node = &anchor;
+	bnex_pool_node_t * this_node = &anchor;
 	
 	bnex_connection_cycle_result_t cycle_res;
 	
@@ -60,16 +62,14 @@ static void * bnex_pool_thread_run(void * parm __attribute__((unused))) {
 	
 	do {
 		if (rwslck_read_enter_nb(&pool_rwslck)) {
-			node = node->next;
+			this_node = atomic_load(&node);
+			while (!atomic_compare_exchange_strong(&node, &this_node, this_node->next)) {
+				this_node = atomic_load(&node);
+				__asm volatile ("pause" ::: "memory");
+			}
 			rwslck_read_leave(&pool_rwslck);
 			
-			continue_no_next:
-			
-			if (atomic_flag_test_and_set(&node->ctrl)) {
-				continue;
-			}
-			
-			if (!node->con) { //anchor node
+			if (!this_node->con) { //anchor node
 				
 				if (bnex_connection_establish(stash, &listener)) {
 					bnex_pool_node_t * new_node = malloc(sizeof(bnex_pool_node_t));
@@ -77,17 +77,17 @@ static void * bnex_pool_thread_run(void * parm __attribute__((unused))) {
 					new_node->con = stash;
 					atomic_flag_clear(&new_node->ctrl);
 					rwslck_write_lock_b(&pool_rwslck);
-					node->prev->next = new_node;
-					new_node->prev = node->prev;
-					node->prev = new_node;
-					new_node->next = node;
+					this_node->prev->next = new_node;
+					new_node->prev = this_node->prev;
+					this_node->prev = new_node;
+					new_node->next = this_node;
 					rwslck_write_unlock(&pool_rwslck);
 					stash = malloc(sizeof(bnex_connection_t));
 					bnex_connection_create(stash);
 					work_timer = 0;
 				}
 				
-				atomic_flag_clear(&node->ctrl);
+				atomic_flag_clear(&this_node->ctrl);
 				
 				if (work_timer) {
 					if (work_timer < 1000)
@@ -105,26 +105,27 @@ static void * bnex_pool_thread_run(void * parm __attribute__((unused))) {
 				continue;
 			}
 			
-			cycle_res = bnex_connection_cycle(node->con);
+			if (atomic_flag_test_and_set(&this_node->ctrl)) {
+				continue;
+			}
+			
+			cycle_res = bnex_connection_cycle(this_node->con);
 			if (cycle_res == BNEX_CONNECTION_CYCLE_TERMINATE) {
-				com_printf_info("closing connection: %p", node);
-				bnex_connection_destroy(node->con);
-				free(node->con);
+				com_printf_info("closing connection: %p", this_node);
+				bnex_connection_destroy(this_node->con);
+				free(this_node->con);
 				rwslck_write_lock_b(&pool_rwslck);
-				node->prev->next = node->next;
-				node->next->prev = node->prev;
-				rwslck_degrade_write_to_read(&pool_rwslck);
-				bnex_pool_node_t * willy = node;
-				node = node->next;
-				rwslck_read_leave(&pool_rwslck);
-				free(willy);
+				this_node->prev->next = this_node->next;
+				this_node->next->prev = this_node->prev;
+				rwslck_write_unlock(&pool_rwslck);
+				free(this_node);
 				work_timer = 0;
-				goto continue_no_next;
+				continue;
 			} else if (cycle_res != BNEX_CONNECTION_CYCLE_IDLE) {
 				work_timer = 0;
 			}
 			
-			atomic_flag_clear(&node->ctrl);
+			atomic_flag_clear(&this_node->ctrl);
 		}
 	} while (atomic_load(&runsem));
 	
@@ -156,6 +157,8 @@ void bnex_pool_init() {
 	
 	threads_len = get_nprocs_conf();
 	threads = malloc(threads_len * sizeof(pthread_t));
+	
+	atomic_store(&node, &anchor);
 	
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
