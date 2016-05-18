@@ -11,11 +11,13 @@ static inline void bnex_connection_reset_for_read(bnex_connection_t * con) {
 	bnex_http_response_destroy(&con->res);
 	bnex_http_response_create(&con->res);
 	con->buf_i = 0;
+	con->buf_off = 0;
 	con->buf = realloc(con->buf, 128);
 	con->buf_len = 128;
 }
 
 static inline bnex_connection_cycle_result_t bnex_connection_cycle_handle_writing(bnex_connection_t * con) {
+	
 	ssize_t rv;
 	if (con->buf_i < con->buf_len) {
 		rv = bnex_socket_write(&con->sock, con->buf + con->buf_i, con->buf_len - con->buf_i);
@@ -27,14 +29,31 @@ static inline bnex_connection_cycle_result_t bnex_connection_cycle_handle_writin
 		} else {
 			return BNEX_CONNECTION_CYCLE_TERMINATE;
 		}
-	} else if (con->buf_i < con->buf_len + con->res.data_len) {
-		rv = bnex_socket_write(&con->sock, con->res.data + (con->buf_i - con->buf_len), con->res.data_len - (con->buf_i - con->buf_len));
-		if (rv > 0) {
-			con->buf_i += rv;
-			return BNEX_CONNECTION_CYCLE_WROTE_SOME;
-		} else if (rv == 0) {
-			return BNEX_CONNECTION_CYCLE_IDLE;
-		} else {
+	} else if (con->buf_i + con->buf_off < con->buf_len + con->res.data_len) {
+		switch (con->res.wmode) {
+		case BNEX_HTTP_RESPONSE_WRITEMODE_BUFFER:
+			rv = bnex_socket_write(&con->sock, con->res.data + (con->buf_i - con->buf_len), con->res.data_len - (con->buf_i - con->buf_len));
+			if (rv > 0) {
+				con->buf_i += rv;
+				return BNEX_CONNECTION_CYCLE_WROTE_SOME;
+			} else if (rv == 0) {
+				return BNEX_CONNECTION_CYCLE_IDLE;
+			} else {
+				return BNEX_CONNECTION_CYCLE_TERMINATE;
+			}
+		case BNEX_HTTP_RESPONSE_WRITEMODE_FILE:
+			rv = bnex_socket_sendfile(&con->sock, con->res.data_fd, &con->buf_off, con->res.data_len);
+			if (rv > 0) {
+				if (con->buf_off == (off_t)con->res.data_len) {
+					bnex_connection_reset_for_read(con);
+				} 
+				return BNEX_CONNECTION_CYCLE_WROTE_SOME;
+			} else if (rv < 0) {
+				return BNEX_CONNECTION_CYCLE_TERMINATE;
+			} else {
+				return BNEX_CONNECTION_CYCLE_IDLE;
+			}
+		default:
 			return BNEX_CONNECTION_CYCLE_TERMINATE;
 		}
 	} else {

@@ -21,6 +21,8 @@ void com_init(void);
 char * vas(char const * fmt, ...);
 char * vas_next();
 
+extern char const * const * const cwd;
+
 void com_print(char const *);
 #define com_printf(str, ...) com_print(vas(str, ##__VA_ARGS__))
 

@@ -3,10 +3,16 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <pthread.h>
+#include <unistd.h>
 
 pthread_spinlock_t prnt_mut;
 
+static char * cwd_internal;
+char const * const * const cwd = (char const * const * const)&cwd_internal;
+
 void com_init(void) {
+	cwd_internal = malloc(512);
+	getcwd(cwd_internal, 512);
 	pthread_spin_init(&prnt_mut, PTHREAD_PROCESS_PRIVATE);
 }
 

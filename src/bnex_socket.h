@@ -17,6 +17,7 @@ void bnex_socket_listener_accept(bnex_socket_t * listener, bnex_socket_t * clien
 
 ssize_t bnex_socket_read(bnex_socket_t *, void * buf, size_t buf_len);
 ssize_t bnex_socket_write(bnex_socket_t *, void * buf, size_t buf_len);
+ssize_t bnex_socket_sendfile(bnex_socket_t *, int fd, off_t * offset, size_t count);
 
 char const * bnex_socket_ip2str(bnex_socket_t *);
 

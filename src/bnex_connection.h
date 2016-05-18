@@ -17,6 +17,7 @@ typedef struct bnex_connection_s {
 	char * buf;
 	size_t buf_len;
 	size_t buf_i;
+	off_t buf_off;
 	
 	bnex_http_request_t req;
 	bnex_http_response_t res;

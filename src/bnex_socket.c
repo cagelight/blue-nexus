@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+#include <sys/sendfile.h>
 
 #include <errno.h>
 
@@ -69,6 +70,15 @@ ssize_t bnex_socket_write(bnex_socket_t * sock, void * buf, size_t buf_len) {
 	}
 }
 
+ssize_t bnex_socket_sendfile(bnex_socket_t * sock, int fd, off_t * offset, size_t count) {
+	ssize_t e = sendfile(sock->fd, fd, offset, count);
+	if (e < 0) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
+		else return -1;
+	} else {
+		return e;
+	}
+}
 
 char const * bnex_socket_ip2str(bnex_socket_t * sock) {
 	return inet_ntop(AF_INET, &sock->addr.sin_addr, vas_next(), VAS_BUFLEN);
