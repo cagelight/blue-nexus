@@ -9,7 +9,8 @@ out = 'build'
 projname = 'bluenexus'
 coreprog_name = 'bnex'
 
-g_cflags = ["-Wall", "-Wextra", "-Wpedantic", "-std=gnu11"]
+g_comflags = ["-Wall", "-Wextra", "-Wpedantic"]
+g_cflags = ["-std=gnu11"] + g_comflags
 def btype_cflags(ctx):
 	return {
 		"DEBUG"   : g_cflags + ["-Og", "-ggdb3", "-march=core2", "-mtune=native"],

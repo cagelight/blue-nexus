@@ -73,7 +73,7 @@ static void * bnex_pool_thread_run(void * parm __attribute__((unused))) {
 				
 				if (bnex_connection_establish(stash, &listener)) {
 					bnex_pool_node_t * new_node = malloc(sizeof(bnex_pool_node_t));
-					com_printf_info("new connection: %p", new_node);
+//					com_printf_info("new connection: %p", new_node);
 					new_node->con = stash;
 					atomic_flag_clear(&new_node->ctrl);
 					rwslck_write_lock_b(&pool_rwslck);
@@ -111,7 +111,7 @@ static void * bnex_pool_thread_run(void * parm __attribute__((unused))) {
 			
 			cycle_res = bnex_connection_cycle(this_node->con);
 			if (cycle_res == BNEX_CONNECTION_CYCLE_TERMINATE) {
-				com_printf_info("closing connection: %p", this_node);
+//				com_printf_info("closing connection: %p", this_node);
 				bnex_connection_destroy(this_node->con);
 				free(this_node->con);
 				rwslck_write_lock_b(&pool_rwslck);
