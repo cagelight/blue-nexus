@@ -51,7 +51,11 @@ void bnex_socket_listener_accept(bnex_socket_t * listener, bnex_socket_t * clien
 ssize_t bnex_socket_read(bnex_socket_t * sock, void * buf, size_t buf_len) {
 	ssize_t e = recv(sock->fd, buf, buf_len, 0);
 	if (e < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
+		if (errno == EAGAIN
+#if EAGAIN != EWOULDBLOCK
+			|| errno == EWOULDBLOCK
+#endif
+		) return 0;
 		else return -1;
 	} else if (e == 0) {
 		return -1;
@@ -63,7 +67,11 @@ ssize_t bnex_socket_read(bnex_socket_t * sock, void * buf, size_t buf_len) {
 ssize_t bnex_socket_write(bnex_socket_t * sock, void * buf, size_t buf_len) {
 	ssize_t e = send(sock->fd, buf, buf_len, 0);
 	if (e < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
+		if (errno == EAGAIN
+#if EAGAIN != EWOULDBLOCK
+			|| errno == EWOULDBLOCK
+#endif
+		) return 0;
 		else return -1;
 	} else {
 		return e;
@@ -73,7 +81,11 @@ ssize_t bnex_socket_write(bnex_socket_t * sock, void * buf, size_t buf_len) {
 ssize_t bnex_socket_sendfile(bnex_socket_t * sock, int fd, off_t * offset, size_t count) {
 	ssize_t e = sendfile(sock->fd, fd, offset, count);
 	if (e < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
+		if (errno == EAGAIN
+#if EAGAIN != EWOULDBLOCK
+			|| errno == EWOULDBLOCK
+#endif
+		) return 0;
 		else return -1;
 	} else {
 		return e;
