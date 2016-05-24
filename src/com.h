@@ -8,16 +8,18 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <string.h>
 
 #define thread_local _Thread_local
 #define atomic _Atomic
 #define ipause __asm volatile ("pause" ::: "memory")
 #define forever for (;;)
+#define lastchr(ptr) ptr[strlen(ptr)-1]
 
 void com_init(void);
 
-#define VAS_BUFLEN 256
-#define VAS_BUFNUM 3
+#define VAS_BUFLEN 1024
+#define VAS_BUFNUM 8
 char * vas(char const * fmt, ...);
 char * vas_next();
 

@@ -42,24 +42,12 @@ http_request_parse_status_t bnex_http_request_parse(bnex_http_request_t * restri
 			if (req->buf_i == head_copy_size) return HTTP_REQUEST_MALFORMED;
 			req->head_copy[req->buf_i++] = '\0';
 			
-			bool need_decode = false;
-			size_t path_len = strlen(req->path);
-			for (size_t i = 0; i < path_len; i++) {
-				if (req->path[i] == '%') {
-					need_decode = true;
-					break;
-				}
+			char const * temp_path = http_path_decode_and_validate(req->path);
+			if (!temp_path) return HTTP_REQUEST_BAD_PATH;
+			req->path_decoded = malloc(strlen(temp_path) + 1);
+			strcpy(req->path_decoded, temp_path);
+			req->path = req->path_decoded;
 				
-			}
-			
-			if (need_decode) {
-				char const * temp_path = http_path_decode(req->path);
-				if (!temp_path) return HTTP_REQUEST_MALFORMED;
-				req->path_decoded = malloc(strlen(temp_path) + 1);
-				strcpy(req->path_decoded, temp_path);
-				req->path = req->path_decoded;
-			}
-			
 			do {
 				
 				while (req->head_copy[req->buf_i] != '\r' && req->buf_i < head_copy_size) req->buf_i++;
@@ -155,6 +143,8 @@ void bnex_http_response_set_data_file(bnex_http_response_t * restrict res, char 
 	bnex_http_response_set_add_field(res, "Content-Type", MIME ? MIME : "application/octet-stream");
 }
 
+static char const * no_handle = "no handle for the requested resource";
+
 void bnex_http_response_generate(bnex_http_response_t * restrict res, bnex_http_request_t const * restrict req) {
 	
 	res->code = 500;
@@ -162,7 +152,6 @@ void bnex_http_response_generate(bnex_http_response_t * restrict res, bnex_http_
 	if (provider_fs_handle(req, res)) goto end;
 	
 	res->code = 404;
-	static char const * no_handle = "no handle for the requested resource";
 	bnex_http_response_set_data_buffer(res, "text/plain", no_handle, strlen(no_handle));
 	
 	end:
@@ -201,7 +190,7 @@ static inline char from_meta(char meta [2]) {
 	return '\0';
 }
 
-char const * http_path_decode(char const * enc) {
+char const * http_path_decode_and_validate(char const * enc) {
 	
 	uint_fast16_t i_f = 0, i_t = 0;
 	uint_fast16_t e_f = strlen(enc), e_t = VAS_BUFLEN;
@@ -219,23 +208,30 @@ char const * http_path_decode(char const * enc) {
 			if (meta == 3) {
 				meta = 0;
 				c = from_meta(meta_c);
-				if (c) buf[i_t++] = c; else return NULL;
-				continue;
+				if (c) goto metaparse; else return NULL;
 			} else {
 				continue;
 			}
 		} else if (c == '%') {
 			meta = 1;
 			continue;
+		} else metaparse: if (c == '/' || c == '\\') {
+			if (buf[i_t-1] == '/') continue;
+			else buf[i_t++] = '/';
 		} else {
 			buf[i_t++] = c;
 			continue;
 		}
 	}
 	
+	if (buf[i_t-1] == '/') 
+		buf[i_t-1] = '\0';
+	else
+		buf[i_t] = '\0';
+	
 	return buf;
 }
 
 char const * http_path_encode(char const * txt) {
-	return NULL;
+	return txt;
 }

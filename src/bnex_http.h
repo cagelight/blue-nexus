@@ -37,6 +37,7 @@ void bnex_http_request_destroy(bnex_http_request_t * restrict);
 typedef enum http_request_parse_status_e {
 	HTTP_REQUEST_INCOMPLETE,
 	HTTP_REQUEST_MALFORMED,
+	HTTP_REQUEST_BAD_PATH,
 	HTTP_REQUEST_COMPLETE
 } http_request_parse_status_t;
 
@@ -82,7 +83,7 @@ void bnex_http_response_generate(bnex_http_response_t * restrict res, bnex_http_
 //================================================================
 
 char const * http_text_for_code(uint_fast16_t code);
-char const * http_path_decode(char const *);
+char const * http_path_decode_and_validate(char const *);
 char const * http_path_encode(char const *);
 
 #endif//BNEX_HTTP_H

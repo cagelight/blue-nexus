@@ -80,6 +80,9 @@ static inline bnex_connection_cycle_result_t bnex_connection_cycle_handle_readin
 		case HTTP_REQUEST_MALFORMED:
 			com_printf_error("Connection from \"%s\" sent malformed request", bnex_socket_ip2str(&con->sock));
 			return BNEX_CONNECTION_CYCLE_TERMINATE;
+		case HTTP_REQUEST_BAD_PATH:
+			com_printf_error("Connection from \"%s\" requested invalid path", bnex_socket_ip2str(&con->sock));
+			return BNEX_CONNECTION_CYCLE_TERMINATE;
 		case HTTP_REQUEST_COMPLETE: 
 			bnex_connection_compile_response(con);
 			con->buf_i = 0;
