@@ -21,6 +21,8 @@ void bnex_http_request_destroy(bnex_http_request_t * restrict req) {
 
 http_request_parse_status_t bnex_http_request_parse(bnex_http_request_t * restrict req, char * src_buf, size_t src_buf_size) {
 	
+	bool bad_path = false;
+	
 	if (!req->head_delimiter) {
 		req->head_delimiter = memmem(src_buf, src_buf_size, "\r\n\r\n", 4);
 		if (!req->head_delimiter) return HTTP_REQUEST_INCOMPLETE;
@@ -43,10 +45,15 @@ http_request_parse_status_t bnex_http_request_parse(bnex_http_request_t * restri
 			req->head_copy[req->buf_i++] = '\0';
 			
 			char const * temp_path = http_path_decode_and_validate(req->path);
-			if (!temp_path) return HTTP_REQUEST_BAD_PATH;
-			req->path_decoded = malloc(strlen(temp_path) + 1);
-			strcpy(req->path_decoded, temp_path);
-			req->path = req->path_decoded;
+			if (!temp_path) {
+				bad_path = true;
+				req->path = NULL;
+			}
+			else {
+				req->path_decoded = malloc(strlen(temp_path) + 1);
+				strcpy(req->path_decoded, temp_path);
+				req->path = req->path_decoded;
+			}
 				
 			do {
 				
@@ -75,7 +82,7 @@ http_request_parse_status_t bnex_http_request_parse(bnex_http_request_t * restri
 	
 	assert(bnex_http_request_get_field(req, "Content-Length") == NULL); // TODO -- Handle Request Body
 	
-	return HTTP_REQUEST_COMPLETE;
+	return bad_path ? HTTP_REQUEST_BAD_PATH : HTTP_REQUEST_COMPLETE;
 }
 
 char const * bnex_http_request_get_field(bnex_http_request_t * restrict req, char const * field) {
@@ -143,21 +150,25 @@ void bnex_http_response_set_data_file(bnex_http_response_t * restrict res, char 
 	bnex_http_response_set_add_field(res, "Content-Type", MIME ? MIME : "application/octet-stream");
 }
 
-static char const * no_handle = "no handle for the requested resource";
+static char const resdt_bad_path [] = "no handle for the requested resource";
+static char const resdt_no_handle [] = "no handle for the requested resource";
 
-void bnex_http_response_generate(bnex_http_response_t * restrict res, bnex_http_request_t const * restrict req) {
+bool bnex_http_response_generate(bnex_http_response_t * restrict res, bnex_http_request_t const * restrict req) {
+	
+	if (!req->path) { //BAD PATH
+		res->code = 400;
+		bnex_http_response_set_data_buffer(res, "text/plain", resdt_bad_path, sizeof(resdt_bad_path));
+		return false;
+	}
 	
 	res->code = 500;
 	
-	if (provider_fs_handle(req, res)) goto end;
+	if (provider_fs_handle(req, res)) return true;
 	
 	res->code = 404;
-	bnex_http_response_set_data_buffer(res, "text/plain", no_handle, strlen(no_handle));
+	bnex_http_response_set_data_buffer(res, "text/plain", resdt_no_handle, sizeof(resdt_no_handle));
 	
-	end:
-	
-	bnex_http_response_set_add_field(res, "Server", "Blue Nexus");
-	bnex_http_response_set_add_field(res, "Content-Length", vas("%zu", res->data_len));
+	return true;
 }
 
 //================================================================
@@ -170,12 +181,16 @@ char const * http_text_for_code(uint_fast16_t code) {
 		return "Continue";	
 	case 200:
 		return "OK";
+	case 400:
+		return "Bad Request";
 	case 404:
 		return "Not Found";
+	case 422:
+		return "Unprocessable Entity";
 	case 500:
 		return "Internal Server Error";
 	default:
-		return "Unknown";
+		return "Unknown Code";
 	}
 }
 
@@ -225,9 +240,12 @@ char const * http_path_decode_and_validate(char const * enc) {
 	}
 	
 	if (buf[i_t-1] == '/') 
-		buf[i_t-1] = '\0';
+		buf[i_t---1] = '\0';
 	else
 		buf[i_t] = '\0';
+	
+	if (!strcmp(&buf[i_t-3], "/..")) return NULL;
+	if (strstr(buf, "/../")) return NULL;
 	
 	return buf;
 }

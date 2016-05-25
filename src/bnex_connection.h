@@ -19,6 +19,8 @@ typedef struct bnex_connection_s {
 	size_t buf_i;
 	off_t buf_off;
 	
+	bool terminate_after_write;
+	
 	bnex_http_request_t req;
 	bnex_http_response_t res;
 	
@@ -27,8 +29,7 @@ typedef struct bnex_connection_s {
 typedef enum bnex_connection_cycle_result_e {
 	BNEX_CONNECTION_CYCLE_TERMINATE = 0,
 	BNEX_CONNECTION_CYCLE_IDLE,
-	BNEX_CONNECTION_CYCLE_READ_SOME,
-	BNEX_CONNECTION_CYCLE_WROTE_SOME,
+	BNEX_CONNECTION_CYCLE_WORKED,
 } bnex_connection_cycle_result_t;
 
 void bnex_connection_create(bnex_connection_t *);

@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <dirent.h>
 
+#define CC(chr) case chr: case chr-32:
 #define MSWITCH( lev ) switch(ext[lev]) { default: return NULL;
 #define MEND }
 
@@ -22,45 +23,64 @@ static char const * MIME_from_ext(char const * ext) {
 	case '.': 
 		ext++;
 		goto again;
-	case 'h':
+	CC('g')
 		MSWITCH (1)
-		case 't':
+		CC('i')
+			MSWITCH (2)
+			CC('f')
+				return "image/gif";
+			MEND
+		MEND
+	CC('h')
+		MSWITCH (1)
+		CC('t')
 			MSWITCH(2)
-			case 'm':
+			CC('m')
 				MSWITCH(3)
 				case '\0':
-				case 'l':
+				CC('l')
 					return "text/html";
 				MEND
 			MEND
 		MEND
-	case 'j':
+	CC('j')
 		MSWITCH (1)
-		case 'p':
+		CC('p')
 			MSWITCH (2)
-			case 'e':
+			CC('e')
 				MSWITCH (3)
-				case 'g':
+				CC('g')
 					return "image/jpeg";
 				MEND
-			case 'g':
+			CC('g')
 				return "image/jpeg";
 			MEND
 		MEND
-	case 'p':
+	CC('p')
 		MSWITCH (1)
-		case 'n':
+		CC('n')
 			MSWITCH (2)
-			case 'g':
+			CC('g')
 				return "image/png";
 			MEND
 		MEND
-	case 't':
+	CC('t')
 		MSWITCH (1)
-		case 'x':
+		CC('x')
 			MSWITCH (2)
-			case 't':
+			CC('t')
 				return "text/plain";
+			MEND
+		MEND
+	CC('w')
+		MSWITCH (1)
+		CC('e')
+			MSWITCH (2)
+			CC('b')
+				MSWITCH (3)
+				CC('m')
+					return "video/webm";
+				MEND
 			MEND
 		MEND
 	MEND
@@ -90,6 +110,8 @@ static char const * class_for_dtype(unsigned char d_type) {
 
 static void provider_fs_directory_view(bnex_http_request_t const * restrict req, bnex_http_response_t * restrict res, int fd, struct stat * finfo) {
 	
+	uint_fast16_t tralt = 0;
+	
 	DIR * dir = fdopendir(fd);
 	struct dirent * entry;
 	
@@ -107,6 +129,8 @@ static void provider_fs_directory_view(bnex_http_request_t const * restrict req,
 		"span.unk{color:#88f;}"
 		"table{border-spacing:0px;}"
 		"td{padding-left:20px;padding-right:20px;padding-top:5px;padding-bottom:5px;}"
+		"tr{background-color:#080808;}"
+		"tr.off{background-color:#0C0C0C;}"
 		"a{text-decoration:none;white-space:pre;}"
 		"a:link{color:#aaa;}"
 		"a:visited{color:#aaa;}"
@@ -129,7 +153,7 @@ static void provider_fs_directory_view(bnex_http_request_t const * restrict req,
 		if (entry->d_type == DT_REG) {
 			fmime = MIME_from_ext(strrchr(entry->d_name, '.'));
 		}
-		char * line = vas("<tr><td><span class=\"ftype %s\">%s</span></td><td><span>%s</span></td><td><a href=\"%s/%s\">%s</a></td></tr>", class_for_dtype(entry->d_type), name_for_dtype(entry->d_type), fmime ? fmime : "", req->path, entry->d_name, entry->d_name);
+		char * line = vas("<%s><td><span class=\"ftype %s\">%s</span></td><td><span>%s</span></td><td><a href=\"%s/%s\">%s</a></td></tr>", tralt++ % 2 ? "tr class = \"off\"" : "tr", class_for_dtype(entry->d_type), name_for_dtype(entry->d_type), fmime ? fmime : "", req->path, entry->d_name, entry->d_name);
 		buffer_n = buffer_l + strlen(line);
 		while (buffer_n > buffer_size) {
 			buffer_size *= 1.5;

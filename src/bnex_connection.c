@@ -23,7 +23,7 @@ static inline bnex_connection_cycle_result_t bnex_connection_cycle_handle_writin
 		rv = bnex_socket_write(&con->sock, con->buf + con->buf_i, con->buf_len - con->buf_i);
 		if (rv > 0) {
 			con->buf_i += rv;
-			return BNEX_CONNECTION_CYCLE_WROTE_SOME;
+			return BNEX_CONNECTION_CYCLE_WORKED;
 		} else if (rv == 0) {
 			return BNEX_CONNECTION_CYCLE_IDLE;
 		} else {
@@ -35,7 +35,7 @@ static inline bnex_connection_cycle_result_t bnex_connection_cycle_handle_writin
 			rv = bnex_socket_write(&con->sock, con->res.data + (con->buf_i - con->buf_len), con->res.data_len - (con->buf_i - con->buf_len));
 			if (rv > 0) {
 				con->buf_i += rv;
-				return BNEX_CONNECTION_CYCLE_WROTE_SOME;
+				return BNEX_CONNECTION_CYCLE_WORKED;
 			} else if (rv == 0) {
 				return BNEX_CONNECTION_CYCLE_IDLE;
 			} else {
@@ -45,9 +45,10 @@ static inline bnex_connection_cycle_result_t bnex_connection_cycle_handle_writin
 			rv = bnex_socket_sendfile(&con->sock, con->res.data_fd, &con->buf_off, con->res.data_len);
 			if (rv > 0) {
 				if (con->buf_off == (off_t)con->res.data_len) {
+					if (con->terminate_after_write) return BNEX_CONNECTION_CYCLE_TERMINATE;
 					bnex_connection_reset_for_read(con);
 				} 
-				return BNEX_CONNECTION_CYCLE_WROTE_SOME;
+				return BNEX_CONNECTION_CYCLE_WORKED;
 			} else if (rv < 0) {
 				return BNEX_CONNECTION_CYCLE_TERMINATE;
 			} else {
@@ -57,6 +58,7 @@ static inline bnex_connection_cycle_result_t bnex_connection_cycle_handle_writin
 			return BNEX_CONNECTION_CYCLE_TERMINATE;
 		}
 	} else {
+		if (con->terminate_after_write) return BNEX_CONNECTION_CYCLE_TERMINATE;
 		bnex_connection_reset_for_read(con);
 		return BNEX_CONNECTION_CYCLE_IDLE;
 	}
@@ -76,18 +78,20 @@ static inline bnex_connection_cycle_result_t bnex_connection_cycle_handle_readin
 				con->buf_len *= 1.5;
 				con->buf = realloc(con->buf, con->buf_len);
 			}
-			return BNEX_CONNECTION_CYCLE_READ_SOME;
+			return BNEX_CONNECTION_CYCLE_WORKED;
 		case HTTP_REQUEST_MALFORMED:
 			com_printf_error("Connection from \"%s\" sent malformed request", bnex_socket_ip2str(&con->sock));
 			return BNEX_CONNECTION_CYCLE_TERMINATE;
 		case HTTP_REQUEST_BAD_PATH:
-			com_printf_error("Connection from \"%s\" requested invalid path", bnex_socket_ip2str(&con->sock));
-			return BNEX_CONNECTION_CYCLE_TERMINATE;
+			bnex_connection_compile_response(con);
+			con->buf_i = 0;
+			con->status = BNEX_CONNECTION_WRITING;
+			return BNEX_CONNECTION_CYCLE_WORKED;
 		case HTTP_REQUEST_COMPLETE: 
 			bnex_connection_compile_response(con);
 			con->buf_i = 0;
 			con->status = BNEX_CONNECTION_WRITING;
-			return BNEX_CONNECTION_CYCLE_READ_SOME;
+			return BNEX_CONNECTION_CYCLE_WORKED;
 		default:
 			return BNEX_CONNECTION_CYCLE_TERMINATE;
 		}
@@ -142,8 +146,12 @@ bnex_connection_cycle_result_t bnex_connection_cycle(bnex_connection_t * con) {
 }
 
 void bnex_connection_compile_response(bnex_connection_t * con) {
-
-	bnex_http_response_generate(&con->res, &con->req);
+	
+	con->terminate_after_write = !bnex_http_response_generate(&con->res, &con->req);
+	if (con->terminate_after_write) bnex_http_response_set_add_field(&con->res, "Connection", "close");
+	
+	bnex_http_response_set_add_field(&con->res, "Server", "Blue Nexus");
+	bnex_http_response_set_add_field(&con->res, "Content-Length", vas("%zu", con->res.data_len));
 	
 	size_t size = 14; // Constants: "HTTP/1.1" (8), two spaces (2), two CRLF's (4)
 	

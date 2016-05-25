@@ -76,7 +76,7 @@ struct bnex_http_response_field_s * bnex_http_response_get_field(bnex_http_respo
 void bnex_http_response_set_add_field(bnex_http_response_t * restrict res, char const * key, char const * value);
 void bnex_http_response_set_data_buffer(bnex_http_response_t * restrict res, char const * MIME, char const * data, size_t data_size);
 void bnex_http_response_set_data_file(bnex_http_response_t * restrict res, char const * MIME, int file_descriptor, size_t data_size);
-void bnex_http_response_generate(bnex_http_response_t * restrict res, bnex_http_request_t const * restrict req);
+bool bnex_http_response_generate(bnex_http_response_t * restrict res, bnex_http_request_t const * restrict req);
 
 //================================================================
 //----------------------------------------------------------------
