@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <time.h>
 
 static inline void bnex_connection_reset_for_read(bnex_connection_t * con) {
 	con->status = BNEX_CONNECTION_READING;
@@ -149,6 +150,15 @@ void bnex_connection_compile_response(bnex_connection_t * con) {
 	
 	con->terminate_after_write = !bnex_http_response_generate(&con->res, &con->req);
 	if (con->terminate_after_write) bnex_http_response_set_add_field(&con->res, "Connection", "close");
+	
+	time_t now;
+	time(&now);
+	struct tm date;
+	localtime_r(&now, &date);
+	
+	char * date_str = vas_next();
+	strftime(date_str, VAS_BUFLEN, "%a, %d %b %Y %T %Z", &date);
+	bnex_http_response_set_add_field(&con->res, "Date", date_str);
 	
 	bnex_http_response_set_add_field(&con->res, "Server", "Blue Nexus");
 	bnex_http_response_set_add_field(&con->res, "Content-Length", vas("%zu", con->res.data_len));

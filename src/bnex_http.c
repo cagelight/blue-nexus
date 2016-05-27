@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 
 #include "provider_filesystem.h"
 
@@ -78,6 +79,11 @@ http_request_parse_status_t bnex_http_request_parse(bnex_http_request_t * restri
 			
 			} while(true);
 		}
+	}
+	
+	char const * date_str = bnex_http_request_get_field(req, "If-Modified-Since");
+	if (date_str) {
+		if (strptime(date_str, "%a, %d %b %Y %T %Z", &req->if_modified_since)) req->has_ims = true;
 	}
 	
 	assert(bnex_http_request_get_field(req, "Content-Length") == NULL); // TODO -- Handle Request Body
@@ -181,6 +187,8 @@ char const * http_text_for_code(uint_fast16_t code) {
 		return "Continue";	
 	case 200:
 		return "OK";
+	case 304:
+		return "Not Modified";
 	case 400:
 		return "Bad Request";
 	case 404:

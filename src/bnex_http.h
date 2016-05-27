@@ -3,6 +3,7 @@
 
 #include "com.h"
 
+#include <time.h>
 #include <unistd.h>
 
 //================================================================
@@ -28,6 +29,9 @@ typedef struct bnex_http_request_s {
 	
 	size_t fields_len;
 	size_t buf_i;
+	
+	bool has_ims;
+	struct tm if_modified_since;
 	
 } bnex_http_request_t;
 

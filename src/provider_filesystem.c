@@ -8,83 +8,7 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#define CC(chr) case chr: case chr-32:
-#define MSWITCH( lev ) switch(ext[lev]) { default: return NULL;
-#define MEND }
-
-static char const * MIME_from_ext(char const * ext) {
-	if (!ext) return NULL;
-	
-	again:
-	
-	MSWITCH (0)
-	case '\0': 
-		return NULL;
-	case '.': 
-		ext++;
-		goto again;
-	CC('g')
-		MSWITCH (1)
-		CC('i')
-			MSWITCH (2)
-			CC('f')
-				return "image/gif";
-			MEND
-		MEND
-	CC('h')
-		MSWITCH (1)
-		CC('t')
-			MSWITCH(2)
-			CC('m')
-				MSWITCH(3)
-				case '\0':
-				CC('l')
-					return "text/html";
-				MEND
-			MEND
-		MEND
-	CC('j')
-		MSWITCH (1)
-		CC('p')
-			MSWITCH (2)
-			CC('e')
-				MSWITCH (3)
-				CC('g')
-					return "image/jpeg";
-				MEND
-			CC('g')
-				return "image/jpeg";
-			MEND
-		MEND
-	CC('p')
-		MSWITCH (1)
-		CC('n')
-			MSWITCH (2)
-			CC('g')
-				return "image/png";
-			MEND
-		MEND
-	CC('t')
-		MSWITCH (1)
-		CC('x')
-			MSWITCH (2)
-			CC('t')
-				return "text/plain";
-			MEND
-		MEND
-	CC('w')
-		MSWITCH (1)
-		CC('e')
-			MSWITCH (2)
-			CC('b')
-				MSWITCH (3)
-				CC('m')
-					return "video/webm";
-				MEND
-			MEND
-		MEND
-	MEND
-}
+#include "mimeswitch.h"
 
 static char const * name_for_dtype(unsigned char d_type) {
 	switch (d_type) {
@@ -100,11 +24,11 @@ static char const * name_for_dtype(unsigned char d_type) {
 static char const * class_for_dtype(unsigned char d_type) {
 	switch (d_type) {
 		default:
-			return "unk";
+			return "u";
 		case DT_REG:
-			return "file";
+			return "f";
 		case DT_DIR:
-			return "dir";
+			return "d";
 	}
 }
 
@@ -124,9 +48,9 @@ static void provider_fs_directory_view(bnex_http_request_t const * restrict req,
 		"body{background-color:#004;margin:20px;}"
 		"span{color:#fff;}"
 		"span.ftype{font-weight:bold;}"
-		"span.file{color:#f88;}"
-		"span.dir{color:#8f8;}"
-		"span.unk{color:#88f;}"
+		"span.f{color:#f88;}"
+		"span.d{color:#8f8;}"
+		"span.u{color:#88f;}"
 		"table{border-spacing:0px;}"
 		"td{padding-left:20px;padding-right:20px;padding-top:5px;padding-bottom:5px;}"
 		"tr{background-color:#080808;}"
@@ -188,7 +112,21 @@ bool provider_fs_handle(bnex_http_request_t const * restrict req, bnex_http_resp
 	fstat(fd, &finfo);
 	
 	if (S_ISREG(finfo.st_mode)) {
+		struct tm ims_tm = req->if_modified_since;
+		if (req->has_ims) {
+			double diff = difftime(finfo.st_mtim.tv_sec, mktime(&ims_tm));
+			com_printf_info("%f", diff);
+			if (diff <= 0) {
+				res->code = 304;
+				return true;
+			}
+		}
+		struct tm date;
+		localtime_r(&finfo.st_mtim.tv_sec, &date);
 		res->code = 200;
+		char * date_str = vas_next();
+		strftime(date_str, VAS_BUFLEN, "%a, %d %b %Y %T %Z", &date);
+		bnex_http_response_set_add_field(res, "Last-Modified", date_str);
 		bnex_http_response_set_data_file(res, MIME_from_ext(strrchr(path, '.')), fd, finfo.st_size);
 		return true;
 	} else if (S_ISDIR(finfo.st_mode)) {
